@@ -1,0 +1,106 @@
+version: "3.9"
+
+# =============================================================================
+# EventForge.bot — Stack Portainer
+# =============================================================================
+# Ce fichier est conçu pour être déployé en tant que "Stack" dans Portainer.
+#
+# IMPORTANT : Dans Portainer, les variables d'environnement sont définies
+# directement dans l'interface "Environment variables" lors du déploiement
+# de la stack. Voir le guide de déploiement pour les détails.
+# =============================================================================
+
+services:
+  bot:
+    image: ghcr.io/${GITHUB_USERNAME:-your-username}/eventforge-bot:latest
+    container_name: eventforge-bot
+    restart: unless-stopped
+    environment:
+      # Discord
+      DISCORD_TOKEN: ${DISCORD_TOKEN:?DISCORD_TOKEN is required}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?DISCORD_CLIENT_ID is required}
+      # Database (référence interne au réseau Docker)
+      DATABASE_URL: postgresql://eventforge:${POSTGRES_PASSWORD:-eventforge_secret}@postgres:5432/eventforge?schema=public
+      # Redis (référence interne au réseau Docker)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      # Bot defaults
+      BOT_DEFAULT_LOCALE: ${BOT_DEFAULT_LOCALE:-fr}
+      BOT_DEFAULT_TIMEZONE: ${BOT_DEFAULT_TIMEZONE:-Europe/Paris}
+      BOT_WIZARD_TIMEOUT_MS: ${BOT_WIZARD_TIMEOUT_MS:-900000}
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - eventforge-net
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: eventforge-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: eventforge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eventforge_secret}
+      POSTGRES_DB: eventforge
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # Ports exposés uniquement en interne — décommenter pour accès externe
+    # ports:
+    #   - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eventforge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - eventforge-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: eventforge-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+    volumes:
+      - redis-data:/data
+    # Ports exposés uniquement en interne
+    # ports:
+    #   - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - eventforge-net
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: eventforge-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@eventforge.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin_secret}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      - postgres
+    networks:
+      - eventforge-net
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  eventforge-net:
+    driver: bridge

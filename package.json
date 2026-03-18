@@ -1,0 +1,43 @@
+{
+  "name": "eventforge-bot",
+  "version": "1.0.0",
+  "description": "EventForge.bot — Discord event management bot",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "deploy-commands": "ts-node src/deploy-commands.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:seed": "ts-node prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "lint": "eslint src/ --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.10.0",
+    "bullmq": "^5.1.0",
+    "date-fns": "^3.3.0",
+    "date-fns-tz": "^3.0.0",
+    "discord.js": "^14.14.0",
+    "dotenv": "^16.4.0",
+    "ioredis": "^5.3.0",
+    "json2csv": "^6.0.0-alpha.2",
+    "winston": "^3.11.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "prisma": "^5.10.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.3.0"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

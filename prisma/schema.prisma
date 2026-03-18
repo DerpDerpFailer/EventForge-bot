@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Guild {
+  id               String   @id // Discord guild_id
+  name             String?
+  locale           String   @default("fr") // "fr" | "en"
+  timezone         String   @default("Europe/Paris")
+  defaultReminders Json     @default("[]") // [15, 60, 1440] minutes avant event
+  summaryChannelId String? // Channel pour les résumés
+  statsChannelId   String? // Channel pour les stats
+  allowedChannels  String[] @default([]) // Channels autorisés pour poster des events
+  creatorRoles     String[] @default([]) // Rôles pouvant créer des events
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  events    Event[]
+  templates Template[]
+  userStats UserStats[]
+}
+
+model Template {
+  id        String   @id @default(cuid())
+  guildId   String
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild   Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  options TemplateOption[]
+  events  Event[]
+
+  @@unique([guildId, name])
+  @@index([guildId])
+}
+
+model TemplateOption {
+  id         String @id @default(cuid())
+  templateId String
+  emoji      String // Emoji Unicode ou custom
+  label      String
+  maxSlots   Int? // null = illimité (max 20 si défini)
+  sortOrder  Int    @default(0)
+  category   String @default("signup") // "signup" | "maybe" | "decline"
+
+  template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+}
+
+model Event {
+  id              String      @id @default(cuid())
+  guildId         String
+  templateId      String?
+  channelId       String // Channel Discord où l'event est posté
+  messageId       String?     @unique // ID du message embed Discord
+  creatorId       String // Discord user_id du créateur
+  title           String
+  description     String?
+  imageUrl        String?
+  eventDate       DateTime // Date/heure de l'événement
+  duration        Int? // Durée en minutes
+  maxParticipants Int? // Limite globale (optionnel)
+  pingRoleId      String? // Rôle à mentionner
+  allowedRoles    String[]    @default([]) // Rôles autorisés (vide = tous)
+  closeAt         DateTime? // Fermeture inscriptions
+  status          EventStatus @default(SCHEDULED)
+  summarySent     Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  guild        Guild              @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  template     Template?          @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  participants EventParticipant[]
+  reminders    Reminder[]
+  recurrence   Recurrence?
+
+  @@index([guildId])
+  @@index([channelId])
+  @@index([eventDate])
+  @@index([status])
+}
+
+enum EventStatus {
+  DRAFT
+  SCHEDULED
+  OPEN
+  CLOSED
+  COMPLETED
+  CANCELLED
+}
+
+model EventParticipant {
+  id           String   @id @default(cuid())
+  eventId      String
+  userId       String // Discord user_id
+  userName     String // Discord display name (cached)
+  optionEmoji  String // L'emoji de l'option choisie
+  optionLabel  String // Le label de l'option choisie
+  isWaitlisted Boolean  @default(false)
+  waitlistPos  Int? // Position dans la waitlist
+  joinedAt     DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId]) // Un user ne peut s'inscrire qu'une fois par event
+  @@index([eventId])
+  @@index([userId])
+}
+
+model Reminder {
+  id            String   @id @default(cuid())
+  eventId       String
+  minutesBefore Int // Minutes avant l'event
+  sent          Boolean  @default(false)
+  scheduledAt   DateTime // Quand le rappel doit être envoyé
+  jobId         String? // BullMQ job ID
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([scheduledAt])
+}
+
+model Recurrence {
+  id        String            @id @default(cuid())
+  eventId   String            @unique
+  pattern   RecurrencePattern
+  interval  Int               @default(1) // Tous les N jours/semaines/mois
+  dayOfWeek Int? // 0-6 pour weekly
+  endDate   DateTime? // Date de fin de récurrence
+  nextRunAt DateTime? // Prochaine occurrence
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+enum RecurrencePattern {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+model UserStats {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String // Discord user_id
+  userName  String // Cached
+  attended  Int      @default(0)
+  maybe     Int      @default(0)
+  declined  Int      @default(0)
+  noShow    Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildId])
+  @@index([guildId, attended])
+}
