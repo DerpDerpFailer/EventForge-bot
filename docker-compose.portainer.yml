@@ -1,18 +1,20 @@
 version: "3.9"
 
 # =============================================================================
-# EventForge.bot — Stack Portainer
+# EventForge.bot — Stack Portainer (build local)
 # =============================================================================
 # Ce fichier est conçu pour être déployé en tant que "Stack" dans Portainer.
+# L'image du bot est construite directement sur la VM depuis le code source.
 #
-# IMPORTANT : Dans Portainer, les variables d'environnement sont définies
-# directement dans l'interface "Environment variables" lors du déploiement
-# de la stack. Voir le guide de déploiement pour les détails.
+# Prérequis : cloner le repo dans /opt/eventforge-bot (ou adapter le chemin)
 # =============================================================================
 
 services:
   bot:
-    image: ghcr.io/${GITHUB_USERNAME:-your-username}/eventforge-bot:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: eventforge-bot:latest
     container_name: eventforge-bot
     restart: unless-stopped
     environment:
@@ -50,7 +52,7 @@ services:
       POSTGRES_DB: eventforge
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    # Ports exposés uniquement en interne — décommenter pour accès externe
+    # Décommenter pour accès externe (pgAdmin hors Docker, DBeaver, etc.)
     # ports:
     #   - "5432:5432"
     healthcheck:
@@ -69,9 +71,6 @@ services:
     command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
     volumes:
       - redis-data:/data
-    # Ports exposés uniquement en interne
-    # ports:
-    #   - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
