@@ -30,6 +30,9 @@ COPY --from=builder --chown=botuser:botgroup /app/prisma ./prisma
 COPY --from=builder --chown=botuser:botgroup /app/package.json ./package.json
 COPY --chown=botuser:botgroup src/locales/*.json ./dist/locales/
 
+# Dossier de logs Winston
+RUN mkdir -p /app/logs && chown botuser:botgroup /app/logs
+
 USER botuser
 
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
